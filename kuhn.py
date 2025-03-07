@@ -2,6 +2,7 @@ from enum import Enum
 import typing
 from typing import Optional, Dict, List, Tuple
 from itertools import permutations
+from collections import deque, defaultdict
 
 starting_states = list(permutations("JQK", 2))
 
@@ -10,7 +11,13 @@ class Action(Enum):
     CALL = "CALL"
     CHECK = "CHECK"
     FOLD = "FOLD"
+    CHANCE = "chance"
 
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return self.value
 
 class Player(Enum):
     RANDOM = -1
@@ -22,10 +29,17 @@ class Player(Enum):
             return Player.RANDOM
         return Player.PLAYER_1 if self == Player.PLAYER_2 else Player.PLAYER_2
 
+    def __str__(self):
+        return self.name
+    
+    def __repr__(self):
+        return self.name
+
 class Cards(Enum):
     Jack = "J"
     Queen = "Q"
     King = "K"
+    Blank = None
 
 
 class Node:
@@ -34,6 +48,10 @@ class Node:
         self.player = player
         self.actions = actions
         self.children: Dict[Action, "Node"] = {}
+        self.information_set: Optional[Tuple[Cards, List[Action]]]= None
+
+    def is_terminal_state(self):
+        return False
 
     def play(self, action):
         return self.children[action]
@@ -43,14 +61,11 @@ class ChanceNode(Node):
     def __init__(self):
         super().__init__(parent=None, player=Player.RANDOM, actions=starting_states)
         self.children = {
-            cards: PlayerNode(self, Player.PLAYER_1, [Action.BET, Action.CHECK], cards, []) for cards in self.actions
+            cards: PlayerNode(self, Player.PLAYER_1, [Action.BET, Action.CHECK], cards, [Action.CHANCE]) for cards in self.actions
         }
 
     def __str__(self):
-        return f"""
-    ChanceNode
-    {[(key, str(value)) for key, value in self.children.items()]}
-    """
+        return f"""ChanceNode"""
 
 
 class PlayerNode(Node):
@@ -72,22 +87,104 @@ class PlayerNode(Node):
             )
             for action in actions
         }
-    
-        self.information_set = f"{self.card}, {self.history}"
+        self.information_set : Tuple[Cards, List[Action]] = (self.card, self.history)
 
     def next_actions(self, action: Action):
-        if len(self.history) == 0 and action == Action.BET:
+        if len(self.history) == 1 and action == Action.BET:
             return [Action.FOLD, Action.CALL]
-        elif len(self.history) == 0 and action == Action.CHECK:
+        elif len(self.history) == 1 and action == Action.CHECK:
             return [Action.BET, Action.CHECK]
         elif self.history[-1] == Action.CHECK and action == Action.BET:
             return [Action.CALL, Action.FOLD]
         elif action == Action.CALL or action == Action.FOLD or (self.history[-1] == Action.CHECK and action == Action.CHECK):
             return []
+        
+    def is_terminal_state(self):
+        return self.actions == []
+
+    def evaluate(self):
+        if not self.is_terminal_state():
+            return None
+        base = 0
+        if self.cards[0] == "K" or self.cards[1] == "J":
+            base = 1
+        elif self.cards[0] == "J" or self.cards[1] == "K":
+            base = -1
+
+        if (self.history[-2] == Action.CHECK and self.history[-1] == Action.CHECK) or (self.history[-2] == Action.BET and self.history[-1] == Action.FOLD):
+            return base
+
+        if self.history[-2] == Action.BET and self.history[-1] == Action.CALL:
+            return base * 2
+
+    def __repr__(self):
+        return f"""PlayerNode: History:{self.history}, {self.player}, Cards:{''.join(self.cards)}, Value:{self.evaluate()}"""
 
     def __str__(self):
-        return f"""
-    PlayerNode 
-    {[child for child in self.children]}
-    """
+        return f"""PlayerNode: History:{self.history}, {self.player}, Cards:{''.join(self.cards)}, Value:{self.evaluate()}"""
 
+
+### Form Treeplex
+
+def dfs(root):
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        print(node)
+        for child_node in node.children:
+            stack.append(child_node)
+
+
+class TreeplexNode:
+    def __init__(self, card: Cards, history:List[Action]):
+        self.card = card
+        self.history = history
+        self.infoset = f"{card}, {history}"
+        self.parent: Optional[TreeplexNode]= None
+        self.children: List[TreeplexNode]= []
+
+    def is_terminal_state(self):
+        return self.children == []
+
+    def __repr__(self):
+        return self.infoset
+
+    def display_tree(self):
+        levels = defaultdict(list)
+        queue = deque([self])
+        while queue:
+            node = queue.popleft()
+            levels[len(node.history)].append(node.infoset)
+            for child in node.children:
+                queue.append(child)
+        keys = levels.keys()
+        for key in sorted(keys):
+            print(*levels[key])
+    
+def hash(card, history):
+    return f"{card}, {history}"
+
+def generate_treeplex(player: Player):
+    stack : List[Node] = [ChanceNode()]
+    root = TreeplexNode(Cards.Blank, [])
+    map = {"" : root}
+    while stack:
+        node = stack.pop()
+        if node.player == player and not node.is_terminal_state():
+            if node.information_set is None:
+                continue
+            card, history = node.information_set
+            s = hash(card, history)
+            if s not in map:
+                treeplex_node = TreeplexNode(card, history)
+                parent = "" if len(history) == 1 else hash(card, history[:-2])
+                treeplex_node.parent = map[parent]
+                map[parent].children.append(treeplex_node)
+                map[s] = treeplex_node
+        for child_node in node.children.values():
+            stack.append(child_node)
+    return root
+
+# dfs(ChanceNode())
+root = generate_treeplex(Player.PLAYER_1)
+root.display_tree()
