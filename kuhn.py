@@ -142,19 +142,51 @@ class TreeplexNode:
         self.infoset = f"{card}, {history}"
         self.parent: Optional[TreeplexNode]= None
         self.children: List[TreeplexNode]= []
+        self.actions: List[Action] = self.get_actions()
+        # initialize uniform strategy (behavioural form)
+        self.strategy: Dict[Action, float] = {
+            action: 1/len(self.actions) for action in self.actions
+        }
 
     def is_terminal_state(self):
         return self.children == []
 
-    def __repr__(self):
-        return self.infoset
+    def __str__(self):
+        if self.parent is None:
+            return "ROOT"
+        return f"(<{self.infoset}>, strat: {self.strategy})"
 
-    def display_tree(self):
+    def __repr__(self):
+        return f"(<{self.infoset}>, strat: {self.strategy})"
+
+    def get_actions(self) -> List[Action]:
+        """Get Actions at this node
+
+        Returns:
+            List[Action]: List of possible actions at this decision node (alphabetical order)
+        """
+        # history = [chance], P1 turn
+        if len(self.history) == 1:
+            return [Action.BET, Action.CHECK]
+        # history = [chance, check/bet] P2 turn
+        if len(self.history) == 2:
+            if self.history[-1] == Action.CHECK:
+                return [Action.BET, Action.CHECK]
+            elif self.history[-1] == Action.BET:
+                return [Action.CALL, Action.FOLD]
+        # history = [chance, check, bet] P1 turn
+        if len(self.history) == 3:
+            return [Action.CALL, Action.FOLD]
+        # catchall at chance node
+        return []
+
+    def display_tree(self) -> None:
+        "Pretty printing of tree"
         levels = defaultdict(list)
         queue = deque([self])
         while queue:
             node = queue.popleft()
-            levels[len(node.history)].append(node.infoset)
+            levels[len(node.history)].append(node)
             for child in node.children:
                 queue.append(child)
         keys = levels.keys()
@@ -164,10 +196,10 @@ class TreeplexNode:
 def hash(card, history):
     return f"{card}, {history}"
 
-def generate_treeplex(player: Player):
-    stack : List[Node] = [ChanceNode()]
-    root = TreeplexNode(Cards.Blank, [])
-    map = {"" : root}
+def generate_treeplex(player: Player, root: Node):
+    stack : List[Node] = [root]
+    treeplex_root = TreeplexNode(Cards.Blank, [])
+    map = {"" : treeplex_root}
     while stack:
         node = stack.pop()
         if node.player == player and not node.is_terminal_state():
@@ -177,14 +209,17 @@ def generate_treeplex(player: Player):
             s = hash(card, history)
             if s not in map:
                 treeplex_node = TreeplexNode(card, history)
-                parent = "" if len(history) == 1 else hash(card, history[:-2])
+                parent = "" if len(history) <= 2 else hash(card, history[:-2])
                 treeplex_node.parent = map[parent]
                 map[parent].children.append(treeplex_node)
                 map[s] = treeplex_node
         for child_node in node.children.values():
             stack.append(child_node)
-    return root
+    return treeplex_root
 
-# dfs(ChanceNode())
-root = generate_treeplex(Player.PLAYER_1)
-root.display_tree()
+root = ChanceNode()
+# dfs(root)
+tree1 = generate_treeplex(Player.PLAYER_1, root)
+tree2 = generate_treeplex(Player.PLAYER_2, root)
+tree1.display_tree()
+tree2.display_tree()
