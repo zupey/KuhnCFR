@@ -258,6 +258,7 @@ leaves: List[PlayerNode] = generate_leaves(root)
 # for key,val in node_map.items():
 #     print(key,val)
 
+# Currently does not take into account chance nodes
 def calc_utility_game():
     expected_val = 0
     for leaf in leaves:
