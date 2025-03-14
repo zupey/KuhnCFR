@@ -49,7 +49,8 @@ class Node:
         self.player = player
         self.actions = actions
         self.children: Dict[Action, "Node"] = {}
-        self.information_set: Optional[Tuple[Cards, List[Action]]]= None
+        self.information_set: Optional[Tuple[Cards, Tuple[Action,...]]]= None
+        self.history: List[Action] = []
 
     def is_terminal_state(self):
         return False
@@ -88,7 +89,7 @@ class PlayerNode(Node):
             )
             for action in actions
         }
-        self.information_set : Tuple[Cards, List[Action]] = (self.card, self.history)
+        self.information_set : Tuple[Cards, Tuple[Action, ...]] = (self.card, tuple(self.history))
 
     def next_actions(self, action: Action):
         if len(self.history) == 1 and action == Action.BET:
@@ -273,4 +274,122 @@ def calc_utility_game():
 def best_response():
     pass
 
-print(calc_utility_game())
+# print(calc_utility_game())
+
+class Infoset:
+    def __init__(self, card: Cards, history: List[Action], seq_id_list: List[int], parent_seq_id: int):
+        # Card and history form the unique identifier for Infoset
+        self.card: Cards = card
+        self.history: List[Action] = history
+        self.seq_id_list: List[int] = seq_id_list
+        self.parent_seq_id: int = parent_seq_id
+
+    def __repr__(self):
+        history_string = ", ".join([str(action) for action in self.history])
+        return f"({self.card}/{history_string})"
+
+class Sequence:
+    def __init__(self, sequence: List[Action] = []):
+        self.sequence: List[Action] = sequence
+
+    def add_parent(self, infoset: Infoset):
+        self.infoset = infoset
+
+    def __repr__(self):
+        return "(" + ", ".join([str(action) for action in self.sequence]) + ")"
+
+    def __hash__(self):
+        return hash(tuple(self.sequence))
+
+    def __eq__(self, other):
+        if isinstance(other, Sequence):
+            return self.sequence == other.sequence
+        return False
+    
+    def __add__(self, other):
+        if isinstance(other, Action):
+            return Sequence(self.sequence + [other])
+        elif isinstance(other, Sequence):
+            return Sequence(self.sequence + other.sequence)
+
+class Treeplex:
+    def __init__(self, infosets: List[Infoset] = [], sequences: List[Sequence] = []):
+        self.infosets: List[Infoset] = infosets
+        self.sequences: List[Sequence] = sequences
+    
+    def add_infoset(self, infoset: Infoset):
+        self.infosets.append(infoset)
+
+    def add_sequence(self, sequence: Sequence) -> int:
+        idx = len(self.sequences)
+        self.sequences.append(sequence)
+        return idx
+
+    def find_infoset(self, card, history) -> Optional[Infoset]:
+        for infoset in self.infosets:
+            if infoset.card == card and infoset.history == history:
+                return infoset
+        return None
+
+# Generate List of Sequences in topological order (BFS)
+player1_treeplex = Treeplex([], [Sequence()])
+player2_treeplex = Treeplex([], [Sequence()])
+seen: set[Tuple[Cards, Tuple[Action,...]]] = set()
+queue: deque[Tuple[Node, int, int]] = deque([(root, 0, 0)])
+while queue:
+    node, p1_idx, p2_idx = queue.popleft()
+    p1parent_seq, p2parent_seq = player1_treeplex.sequences[p1_idx], player2_treeplex.sequences[p2_idx]
+
+    infoset = None
+    if node.information_set in seen and isinstance(node, PlayerNode):
+        if node.player == Player.PLAYER_1:
+            infoset = player1_treeplex.find_infoset(node.card, node.history)
+        elif node.player == Player.PLAYER_2:
+            infoset = player2_treeplex.find_infoset(node.card, node.history)
+            
+    if isinstance(node, PlayerNode) and not node.is_terminal_state() and node.information_set not in seen:
+        children_seq: List[int] = []
+        children: List[Node] = []
+        if node.player == Player.PLAYER_1:
+            # Generate Children Sequences
+            for action, child in node.children.items():
+                child_idx = player1_treeplex.add_sequence(p1parent_seq + action)
+                children_seq.append(child_idx)
+                children.append(child)
+            infoset = Infoset(node.card, node.history, children_seq, p1_idx)
+            player1_treeplex.add_infoset(infoset)
+        elif node.player == Player.PLAYER_2:
+            # Generate Children Sequences
+            for action in node.children.keys():
+                child_idx = player2_treeplex.add_sequence(p2parent_seq + action)
+                children_seq.append(child_idx)
+                children.append(child)
+            infoset = Infoset(node.card, node.history, children_seq, p2_idx)
+            player2_treeplex.add_infoset(infoset)
+
+        # add infoset into seen so we process each infoset once
+        seen.add(node.information_set)
+    
+    # Process leaf logics
+    if node.is_terminal_state():
+        pass
+    if isinstance(node, ChanceNode):
+        for action, child in node.children.items():
+                queue.append((child, p1_idx, p2_idx))
+    elif isinstance(node, PlayerNode) and infoset:
+        if node.player == Player.PLAYER_1:
+            for id in infoset.seq_id_list:
+                action = player1_treeplex.sequences[id].sequence[-1]
+                child = node.children[action]
+                queue.append((child, id, p2_idx))
+        if node.player == Player.PLAYER_2:
+            for id in infoset.seq_id_list:
+                action = player2_treeplex.sequences[id].sequence[-1]
+                child = node.children[action]
+                queue.append((child, p1_idx, id))
+
+
+print(player1_treeplex.infosets)
+# print(player1_treeplex.sequences)
+print(player2_treeplex.infosets)
+# print(player2_treeplex.sequences)
