@@ -148,14 +148,19 @@ class Infoset:
         return f"({self.card}/{history_string})"
 
 class Sequence:
-    def __init__(self, sequence: List[Action] = []):
+    def __init__(self, sequence: List[Action] = [], value: float = 1.0):
         self.sequence: List[Action] = sequence
+        self.value: float = value
+        self.child_infosets: List[Infoset] = []
 
     def add_parent(self, infoset: Infoset):
         self.infoset = infoset
 
+    def add_child_infoset(self, infoset: Infoset):
+        self.child_infosets.append(infoset)
+
     def __repr__(self):
-        return "(" + ", ".join([str(action) for action in self.sequence]) + ")"
+        return "(" + ", ".join([str(action) for action in self.sequence]) + ", " + str(self.value) + ")"
 
     def __hash__(self):
         return hash(tuple(self.sequence))
@@ -184,11 +189,23 @@ class Treeplex:
         self.sequences.append(sequence)
         return idx
 
+    # can be improved to use hashmap instead of linear search
     def find_infoset(self, card, history) -> Optional[Infoset]:
         for infoset in self.infosets:
             if infoset.card == card and infoset.history == history:
                 return infoset
         return None
+
+    def convert_to_sequence_form(self) -> None:
+        stack: List[Sequence] = [self.sequences[0]]
+        while stack:
+            seq = stack.pop()
+
+            for child_infoset in seq.child_infosets:
+                total = sum([self.sequences[seq_id].value for seq_id in child_infoset.seq_id_list])
+                for seq_id in child_infoset.seq_id_list:
+                    self.sequences[seq_id].value = seq.value * self.sequences[seq_id].value / total
+                    stack.append(self.sequences[seq_id])
 
 @dataclass
 class Leaf:
@@ -225,6 +242,7 @@ while queue:
                 children.append(child)
             infoset = Infoset(node.card, node.history, children_seq, p1_idx)
             player1_treeplex.add_infoset(infoset)
+            p1parent_seq.add_child_infoset(infoset)
             for child_seq in children_seq:
                 player1_treeplex.sequences[child_seq].add_parent(infoset)
         elif node.player == Player.PLAYER_2:
@@ -235,6 +253,7 @@ while queue:
                 children.append(child)
             infoset = Infoset(node.card, node.history, children_seq, p2_idx)
             player2_treeplex.add_infoset(infoset)
+            p2parent_seq.add_child_infoset(infoset)
             for child_seq in children_seq:
                 player2_treeplex.sequences[child_seq].add_parent(infoset)
 
@@ -261,13 +280,12 @@ while queue:
 
 
 # print(player1_treeplex.infosets)
-print(player1_treeplex.sequences)
+# print(player1_treeplex.sequences)
 # print(player2_treeplex.infosets)
-print(player2_treeplex.sequences)
+# print(player2_treeplex.sequences)
 # print(leaves)
 
 payoff_matrix: List[List[float]] = [[0. for _ in range(len(player2_treeplex.sequences))] for _ in range(len(player1_treeplex.sequences))]
-print(len(leaves))
 for leaf in leaves:
     seq1 = player1_treeplex.sequences[leaf.seq1_id]
     seq2 = player2_treeplex.sequences[leaf.seq2_id]
@@ -275,14 +293,26 @@ for leaf in leaves:
     payoff_matrix[leaf.seq1_id][leaf.seq2_id] += leaf.value / 6
 
 
-print(np.array(payoff_matrix))
+np_payoff = np.array(payoff_matrix)
+# print(np_payoff)
 
 
 """
 TODO
-1. Initialize strategy for each seq
-2. Enforce Checks (strategy between 0 and 1 + sum to parent)
-3. Calculate xPy (utility)
+1. Initialize strategy for each seq + convert to seq form (ok)
+2. Enforce Checks (strategy between 0 and 1 + sum to parent) (ok)
+3. Calculate xPy (utility) (ok)
 4. Calculate best reponse by backward induction
 5.++ CFR
 """
+
+# As a sanity check, when playing a uniform strategy at every infoset, the value of the game should be 0.125
+def calc_utility(treeplex1: Treeplex, treeplex2: Treeplex) -> float:
+    # convert to sequence form just in case
+    treeplex1.convert_to_sequence_form()
+    treeplex2.convert_to_sequence_form()
+    p1_strat = np.array([seq.value for seq in treeplex1.sequences])
+    p2_strat = np.array([seq.value for seq in treeplex2.sequences])
+    return p1_strat @ np_payoff @ p2_strat.T
+
+print(calc_utility(player1_treeplex, player2_treeplex))
