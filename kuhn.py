@@ -152,6 +152,7 @@ class Sequence:
         self.sequence: List[Action] = sequence
         self.value: float = value
         self.child_infosets: List[Infoset] = []
+        self.infoset: Optional[Infoset] = None
 
     def add_parent(self, infoset: Infoset):
         self.infoset = infoset
@@ -160,7 +161,8 @@ class Sequence:
         self.child_infosets.append(infoset)
 
     def __repr__(self):
-        return "(" + ", ".join([str(action) for action in self.sequence]) + ", " + str(self.value) + ")"
+        actions = ", ".join([str(action) for action in self.sequence])
+        return f"({self.infoset.card if self.infoset else None} {actions}, {str(self.value)})"
 
     def __hash__(self):
         return hash(tuple(self.sequence))
@@ -302,7 +304,7 @@ TODO
 1. Initialize strategy for each seq + convert to seq form (ok)
 2. Enforce Checks (strategy between 0 and 1 + sum to parent) (ok)
 3. Calculate xPy (utility) (ok)
-4. Calculate best reponse by backward induction
+4. Calculate best reponse by backward induction (ok)
 5.++ CFR
 """
 
@@ -313,6 +315,49 @@ def calc_utility(treeplex1: Treeplex, treeplex2: Treeplex) -> float:
     treeplex2.convert_to_sequence_form()
     p1_strat = np.array([seq.value for seq in treeplex1.sequences])
     p2_strat = np.array([seq.value for seq in treeplex2.sequences])
-    return p1_strat @ np_payoff @ p2_strat.T
+    return p1_strat @ np_payoff @ p2_strat
 
 print(calc_utility(player1_treeplex, player2_treeplex))
+
+def calc_p1_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
+    p2_strat = np.array([seq.value for seq in treeplex2.sequences])
+    p1_utility = np_payoff @ p2_strat
+    p1_bestresponse = [0] * len(treeplex1.sequences)
+    for idx in range(len(treeplex1.sequences)-1,-1,-1):
+        if treeplex1.sequences[idx].child_infosets:
+            for child_infoset in treeplex1.sequences[idx].child_infosets:
+                best_value, best_idx = -float('inf'), -1
+                for child_seq_idx in child_infoset.seq_id_list:
+                    if p1_utility[child_seq_idx] > best_value:
+                        best_value = p1_utility[child_seq_idx]
+                        best_idx = child_seq_idx
+                # plays strat with best utility 100% of the time as best response
+                p1_bestresponse[best_idx] = 1
+            p1_utility[idx] += best_value
+    return p1_bestresponse
+
+def calc_p2_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
+    p1_strat = np.array([seq.value for seq in treeplex1.sequences])
+    p2_utility = p1_strat @ np_payoff
+    p2_bestresponse = [0] * len(treeplex1.sequences)
+    for idx in range(len(treeplex1.sequences)-1,-1,-1):
+        if treeplex1.sequences[idx].child_infosets:
+            for child_infoset in treeplex1.sequences[idx].child_infosets:
+                best_value, best_idx = float('inf'), -1
+                for child_seq_idx in child_infoset.seq_id_list:
+                    if p2_utility[child_seq_idx] < best_value:
+                        best_value = p2_utility[child_seq_idx]
+                        best_idx = child_seq_idx
+                # plays strat with best utility 100% of the time as best response
+                p2_bestresponse[best_idx] = 1
+            p2_utility[idx] += best_value
+    return p2_bestresponse
+p1_strat = np.array([seq.value for seq in player1_treeplex.sequences])
+p2_strat = np.array([seq.value for seq in player2_treeplex.sequences])
+
+print(calc_p1_best_response(player1_treeplex, player2_treeplex))
+print(player1_treeplex.sequences)
+
+print(calc_p2_best_response(player1_treeplex, player2_treeplex))
+print(player2_treeplex.sequences)
+
