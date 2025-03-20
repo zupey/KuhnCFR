@@ -305,7 +305,7 @@ TODO
 2. Enforce Checks (strategy between 0 and 1 + sum to parent) (ok)
 3. Calculate xPy (utility) (ok)
 4. Calculate best reponse by backward induction (ok)
-5.++ CFR
+5.++ CFR (regret matching)
 """
 
 # As a sanity check, when playing a uniform strategy at every infoset, the value of the game should be 0.125
@@ -317,7 +317,7 @@ def calc_utility(treeplex1: Treeplex, treeplex2: Treeplex) -> float:
     p2_strat = np.array([seq.value for seq in treeplex2.sequences])
     return p1_strat @ np_payoff @ p2_strat
 
-print(calc_utility(player1_treeplex, player2_treeplex))
+# print(calc_utility(player1_treeplex, player2_treeplex))
 
 def calc_p1_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
     p2_strat = np.array([seq.value for seq in treeplex2.sequences])
@@ -339,10 +339,10 @@ def calc_p1_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
 def calc_p2_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
     p1_strat = np.array([seq.value for seq in treeplex1.sequences])
     p2_utility = p1_strat @ np_payoff
-    p2_bestresponse = [0] * len(treeplex1.sequences)
-    for idx in range(len(treeplex1.sequences)-1,-1,-1):
-        if treeplex1.sequences[idx].child_infosets:
-            for child_infoset in treeplex1.sequences[idx].child_infosets:
+    p2_bestresponse = [0] * len(treeplex2.sequences)
+    for idx in range(len(treeplex2.sequences)-1,-1,-1):
+        if treeplex2.sequences[idx].child_infosets:
+            for child_infoset in treeplex2.sequences[idx].child_infosets:
                 best_value, best_idx = float('inf'), -1
                 for child_seq_idx in child_infoset.seq_id_list:
                     if p2_utility[child_seq_idx] < best_value:
@@ -355,9 +355,77 @@ def calc_p2_best_response(treeplex1: Treeplex, treeplex2: Treeplex):
 p1_strat = np.array([seq.value for seq in player1_treeplex.sequences])
 p2_strat = np.array([seq.value for seq in player2_treeplex.sequences])
 
-print(calc_p1_best_response(player1_treeplex, player2_treeplex))
-print(player1_treeplex.sequences)
+# print(calc_p1_best_response(player1_treeplex, player2_treeplex))
+# print(player1_treeplex.sequences)
 
-print(calc_p2_best_response(player1_treeplex, player2_treeplex))
-print(player2_treeplex.sequences)
+# print(calc_p2_best_response(player1_treeplex, player2_treeplex))
+# print(player2_treeplex.sequences)
+
+"""
+do this 2 times (once for each player)
+for each infoset, 
+1. calculate current utility (by playing current strategy)
+2. calculate utility for playing each action (will be in the array similar to calculating best response)
+3. take max(utility - current utility, 0) as regret and add it to the regret for that sequence
+4. update strategy at each infoset in proportional to this regret
+
+convert to sequence form
+"""
+def counterfactual_regret_minimizer(treeplex1: Treeplex, treeplex2: Treeplex, iterations: int):
+    # initalize regret
+    p1_regret = [1.] * len(treeplex1.sequences)
+    p2_regret = [1.] * len(treeplex2.sequences)
+    p1_strat = np.array([seq.value for seq in treeplex1.sequences])
+    p2_strat = np.array([seq.value for seq in treeplex2.sequences])
+
+    for _ in range(iterations):
+        p1_utility = np_payoff @ p2_strat
+        p2_utility = p1_strat @ np_payoff
+
+        for idx in range(len(treeplex1.sequences)-1,-1,-1):
+            if treeplex1.sequences[idx].child_infosets:
+                for child_infoset in treeplex1.sequences[idx].child_infosets:
+                    cur_utility = 0.
+                    total_regret = 0.
+                    # calc utility by playing current strategy
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        cur_utility += p1_strat[child_seq_idx] * p1_utility[child_seq_idx]
+                    # update regret and store total regret
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        p1_regret[child_seq_idx] += max(p1_utility[child_seq_idx] - cur_utility, 0)
+                        total_regret += p1_regret[child_seq_idx]
+                    # update strat
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        p1_strat[child_seq_idx] = p1_regret[child_seq_idx] / total_regret
+
+        for idx in range(len(treeplex2.sequences)-1,-1,-1):
+            if treeplex2.sequences[idx].child_infosets:
+                for child_infoset in treeplex2.sequences[idx].child_infosets:
+                    cur_utility = 0.
+                    total_regret = 0.
+                    # calc utility by playing current strategy
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        cur_utility += p2_strat[child_seq_idx] * p2_utility[child_seq_idx]
+                    # update regret and store total regret
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        p2_regret[child_seq_idx] += max(-p2_utility[child_seq_idx] + cur_utility, 0) # opp sign for p2
+                        total_regret += p2_regret[child_seq_idx]
+                    # update strat
+                    for child_seq_idx in child_infoset.seq_id_list:
+                        p2_strat[child_seq_idx] = p2_regret[child_seq_idx] / total_regret
+        for idx, seq in enumerate(treeplex1.sequences):
+            seq.value = p1_strat[idx] 
+        for idx, seq in enumerate(treeplex2.sequences):
+            seq.value = p2_strat[idx] 
+        treeplex1.convert_to_sequence_form()
+        treeplex2.convert_to_sequence_form()
+    return p1_strat, p2_strat
+
+x, y = counterfactual_regret_minimizer(player1_treeplex, player2_treeplex, 5000)
+print(x)
+print(y)
+
+
+# not getting -1/18 (yet)
+print(calc_utility(player1_treeplex, player2_treeplex))
 
