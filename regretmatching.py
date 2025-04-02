@@ -1,5 +1,4 @@
 import numpy as np
-import random
 from itertools import combinations_with_replacement, permutations
 
 class RegretMatchingPlayer:
@@ -32,14 +31,6 @@ class RegretMatchingPlayer:
         self.strategy_sum += self.strategy
         return self.strategy
 
-    def get_action(self, strategy):
-        return random.choices(self.actions, weights=strategy, k=1)[0]
-
-    def update_regrets(self, my_action, opp_action):
-        for a in self.actions:
-            regret = self.payoff[a, opp_action] - self.payoff[my_action, opp_action]
-            self.regret_sum[a] += regret
-
     def get_average_strategy(self):
         if np.sum(self.strategy_sum) > 0:
             return self.strategy_sum / np.sum(self.strategy_sum)
@@ -54,17 +45,26 @@ class RegretMatchingPlayer:
     def get_utility(self, other_strategy):
         return self.get_average_strategy() @ self.payoff @ other_strategy.T
 
+    def update_regrets_against_strategy(self, opp_strategy):
+        current_util = self.strategy @ self.payoff @ opp_strategy.T
+        self.regret_sum += self.payoff @ opp_strategy.T - current_util
+        self.regret_sum = np.maximum(self.regret_sum, 0)
+    
+    def accumulate_strategy(self, strategy):
+        """Track average strategy over time"""
+        self.strategy_sum += strategy
+
 
 def play_match(p1, p2, num_iterations):
     for _ in range(num_iterations):
         p1_strat = p1.get_strategy()
         p2_strat = p2.get_strategy()
         
-        p1_action = p1.get_action(p1_strat)
-        p2_action = p2.get_action(p2_strat)
-
-        p1.update_regrets(p1_action, p2_action)
-        p2.update_regrets(p2_action, p1_action)
+        p1.update_regrets_against_strategy(p2_strat)
+        p2.update_regrets_against_strategy(p1_strat)
+        
+        p1.accumulate_strategy(p1_strat)
+        p2.accumulate_strategy(p2_strat)
 
 def calc_nash_equilibrium(strategy, game_payoff, num_iterations=1000):
     p1 = RegretMatchingPlayer(strategy, game_payoff, 0)
@@ -73,7 +73,7 @@ def calc_nash_equilibrium(strategy, game_payoff, num_iterations=1000):
     play_match(p1, p2, num_iterations)
 
     print(p1.get_utility(p2.get_average_strategy()))
-    print(p2.get_utility(p2.get_average_strategy()))
+    print(p2.get_utility(p1.get_average_strategy()))
 
     print("\nPlayer 1 top strategies:")
     for strat, prob in p1.get_top_strategies(20):
