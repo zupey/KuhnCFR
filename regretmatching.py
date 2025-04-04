@@ -66,9 +66,9 @@ def play_match(p1, p2, num_iterations):
         p1.accumulate_strategy(p1_strat)
         p2.accumulate_strategy(p2_strat)
 
-def calc_nash_equilibrium(strategy, game_payoff, num_iterations=1000):
-    p1 = RegretMatchingPlayer(strategy, game_payoff, 0)
-    p2 = RegretMatchingPlayer(strategy, game_payoff, 1)
+def calc_nash_equilibrium(strategy_name, game_payoff, num_iterations=1000):
+    p1 = RegretMatchingPlayer(strategy_name, game_payoff, 0)
+    p2 = RegretMatchingPlayer(strategy_name, game_payoff, 1)
 
     play_match(p1, p2, num_iterations)
 
@@ -98,6 +98,12 @@ BotS_payoff = np.array([
     [[0, 0], [1, 2]]
 ])
 
+mp_strategy = ("Left", "Right")
+mp_payoff = np.array([
+    [[0, 0], [0.5, -0.5]],
+    [[1, -1], [0, 0]]
+])
+
 
 def blotto(S, N):
     strategies = set()
@@ -125,6 +131,7 @@ def blotto(S, N):
             payoff_matrix[i, j] = calculate_payoff(s1, s2)
     return sorted_strategies, payoff_matrix
 
-calc_nash_equilibrium(RPS_strategy, RPS_payoff)
-calc_nash_equilibrium(BotS_strategy, BotS_payoff)
+# calc_nash_equilibrium(RPS_strategy, RPS_payoff)
+# calc_nash_equilibrium(BotS_strategy, BotS_payoff)
 calc_nash_equilibrium(*blotto(5, 3))
+# calc_nash_equilibrium(mp_strategy, mp_payoff, num_iterations=10000)

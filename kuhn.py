@@ -299,6 +299,8 @@ for leaf in leaves:
 np_payoff = np.array(payoff_matrix)
 # print(np_payoff)
 # print('\n'.join([', '.join([str(cell) for cell in row]) for row in np_payoff]))
+for row in payoff_matrix:
+    print(list(np.array(row) * 6))
 
 
 # As a sanity check, when playing a uniform strategy at every infoset, the value of the game should be 0.125
