@@ -15,5 +15,3 @@ Curious to find the distribution of strategies that the regret matching algorith
 # KuhnCFR
 Trying to Solve Kuhn Poker using Counterfactual Regret Minimization
 In my first iteration, I implemented KuhnPoker game in OOP manner to generate the game states.  Then, I tried to implement counterfactual regret minimization on this game.  However, due to my limited understanding, there were many bugs in the code.  After implementing regret matching, I re-implemented CFR for Kuhn Poker using the bare minimum with less overhead.  It correctly identified the value of the game to be -1/18 for P1.  
-
-TODO: Refactor Counterfactual Regret Minimization and use computer-generated game details.

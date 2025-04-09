@@ -1,7 +1,8 @@
 import numpy as np
+from kuhnpoker import export_game_details
 
-class KuhnPokerTreeplex:
-    def __init__(self, strategy_name, payoff, strategy_parent, strategy_children, infoset_parent, infoset_children):
+class Treeplex:
+    def __init__(self, strategy_name, payoff, strategy_children, infoset_parent, infoset_children):
         self.NUM_SEQ = payoff.shape[0]
         self.NUM_INFOSET = len(infoset_parent)
         self.strategy = np.zeros(self.NUM_SEQ)
@@ -9,7 +10,6 @@ class KuhnPokerTreeplex:
         self.regret_sum = np.zeros(self.NUM_SEQ)
 
         self.strategy_utility = np.zeros(self.NUM_SEQ)
-        self.strategy_parent = strategy_parent
         self.strategy_children = strategy_children
         self.infoset_parent = infoset_parent
         self.infoset_children = infoset_children
@@ -17,7 +17,7 @@ class KuhnPokerTreeplex:
         self.strategy[0] = 1
         self.strategy = self.get_behavioral_strategy()
 
-        assert(len(strategy_parent) == len(strategy_children) ==  self.NUM_SEQ)
+        assert(len(strategy_children) ==  self.NUM_SEQ)
         assert(len(infoset_parent) == len(infoset_children) == self.NUM_INFOSET)
 
         self.payoff = payoff
@@ -98,7 +98,7 @@ class KuhnPokerTreeplex:
     def get_average_strategy(self, num_iterations):
         return self.strategy_sum / num_iterations
 
-def train(p1: KuhnPokerTreeplex, p2: KuhnPokerTreeplex, num_iterations=1000):
+def train(p1: Treeplex, p2: Treeplex, num_iterations=1000):
     for _ in range(num_iterations):
         p1_strat = p1.get_sequence_form_strategy()
         p2_strat = p2.get_sequence_form_strategy()
@@ -110,41 +110,10 @@ def train(p1: KuhnPokerTreeplex, p2: KuhnPokerTreeplex, num_iterations=1000):
         p2.accumulate_strategy(p2_strat)
     return p1.get_average_strategy(num_iterations), p2.get_average_strategy(num_iterations)
 
-    
+payoff_matrix, p1_strat_children, p1_infoset_parent, p1_infoset_children, p1_strat_name, p2_strat_children, p2_infoset_parent, p2_infoset_children, p2_strat_name = export_game_details()
 
-        
-p1_strat_parent = [None, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
-p1_strat_children = [[0,1,2], [], [3], [], [4], [], [5], [], [], [], [], [], []]
-p1_infoset_parent = [0, 0, 0, 2, 4, 6]
-p1_infoset_children = [[1,2], [3,4], [5,6], [7,8], [9,10], [11,12]]
-
-p2_strat_parent = [None, 3, 3, 2, 2, 5, 5, 4, 4, 1, 1, 0, 0]
-p2_strat_children = [[0,1,2,3,4,5], [], [], [], [], [], [], [], [], [], [], [], []]
-p2_infoset_parent = [0, 0, 0, 0, 0, 0]
-p2_infoset_children = [[11,12], [9,10], [3,4], [1,2], [7,8], [5,6]]
-
-payoff_matrix = np.array([
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,],
-    [ 0,  1, -2,  0,  0,  1, -2,  0,  0,  0,  0,  0,  0,],
-    [ 0,  0,  0,  0, -1,  0,  0,  0, -1,  0,  0,  0,  0,],
-    [ 0,  0,  0,  0,  0,  1, -2,  0,  0,  1,  2,  0,  0,],
-    [ 0,  0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  1,],
-    [0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0,],
-    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,],
-    [ 0,  0,  0, -2,  0,  0,  0, -2,  0,  0,  0,  0,  0,],
-    [ 0,  0,  0, -1,  0,  0,  0, -1,  0,  0,  0,  0,  0,],
-    [ 0,  0,  0,  0,  0,  0,  0, -2,  0,  0,  0,  2,  0,],
-    [ 0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0, -1,  0,],
-    [0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0,],
-    [ 0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0, -1,  0,],
-])
-
-payoff_matrix = payoff_matrix / 6
-p1_strat_name = [None, "J/Bet", "J/Check", "Q/Bet", "Q/Check", "K/Bet", "K/Check", "J/Check/Call", "J/Check/Fold", "Q/Check/Call", "Q/Check/Fold", "K/Check/Call", "K/Check/Fold"]
-p2_strat_name = [None, "Q/Fold", "Q/Call", "Q/Bet", "Q/Check", "K/Fold", "K/Call", "K/Bet", "K/Check", "J/Fold", "J/Call", "J/Bet", "J/Check"]
-
-p1_treeplex = KuhnPokerTreeplex(p1_strat_name, payoff_matrix, p1_strat_parent, p1_strat_children, p1_infoset_parent, p1_infoset_children)
-p2_treeplex = KuhnPokerTreeplex(p2_strat_name, -payoff_matrix.T, p2_strat_parent, p2_strat_children, p2_infoset_parent, p2_infoset_children)
+p1_treeplex = Treeplex(p1_strat_name, payoff_matrix, p1_strat_children, p1_infoset_parent, p1_infoset_children)
+p2_treeplex = Treeplex(p2_strat_name, -payoff_matrix.T, p2_strat_children, p2_infoset_parent, p2_infoset_children)
 
 p1_strat, p2_strat = train(p1_treeplex, p2_treeplex)
 print("P1 Seq_form strat:", p1_strat)
