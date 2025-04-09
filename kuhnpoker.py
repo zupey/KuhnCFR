@@ -67,7 +67,7 @@ class ChanceNode(Node):
         }
 
     def __str__(self):
-        return f"""ChanceNode"""
+        return "ChanceNode"
 
 
 class PlayerNode(Node):
