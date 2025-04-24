@@ -133,5 +133,5 @@ def blotto(S, N):
 
 # calc_nash_equilibrium(RPS_strategy, RPS_payoff)
 # calc_nash_equilibrium(BotS_strategy, BotS_payoff)
-calc_nash_equilibrium(*blotto(5, 3))
-# calc_nash_equilibrium(mp_strategy, mp_payoff, num_iterations=10000)
+# calc_nash_equilibrium(*blotto(5, 3))
+calc_nash_equilibrium(mp_strategy, mp_payoff, num_iterations=10000)

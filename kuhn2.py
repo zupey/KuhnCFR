@@ -115,7 +115,7 @@ payoff_matrix, p1_strat_children, p1_infoset_parent, p1_infoset_children, p1_str
 p1_treeplex = Treeplex(p1_strat_name, payoff_matrix, p1_strat_children, p1_infoset_parent, p1_infoset_children)
 p2_treeplex = Treeplex(p2_strat_name, -payoff_matrix.T, p2_strat_children, p2_infoset_parent, p2_infoset_children)
 
-p1_strat, p2_strat = train(p1_treeplex, p2_treeplex)
+p1_strat, p2_strat = train(p1_treeplex, p2_treeplex, num_iterations=10000)
 print("P1 Seq_form strat:", p1_strat)
 print("P2 Seq_form strat:", p2_strat)
 print("P1 Behav_form strat:", p1_treeplex.convert_seqform_to_behav(p1_strat))
